@@ -2,7 +2,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Nearby Connections: Wi-Fi -->
+    <!-- Wi-Fi permissions -->
     <uses-permission
         android:name="android.permission.ACCESS_WIFI_STATE"
         android:maxSdkVersion="32" />
@@ -10,7 +10,7 @@
         android:name="android.permission.CHANGE_WIFI_STATE"
         android:maxSdkVersion="32" />
 
-    <!-- Nearby Connections: older Bluetooth permissions -->
+    <!-- Older Bluetooth permissions -->
     <uses-permission
         android:name="android.permission.BLUETOOTH"
         android:maxSdkVersion="30" />
@@ -18,55 +18,36 @@
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
 
-    <!-- Location permissions required by older Android versions -->
+    <!-- Location permissions for older Android versions -->
     <uses-permission
         android:name="android.permission.ACCESS_COARSE_LOCATION"
         android:maxSdkVersion="32" />
     <uses-permission
         android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:minSdkVersion="29"
         android:maxSdkVersion="32" />
 
-    <!-- Bluetooth permissions for Android 12 and newer -->
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_ADVERTISE"
-        android:minSdkVersion="31" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_CONNECT"
-        android:minSdkVersion="31" />
+    <!-- Bluetooth permissions -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission
         android:name="android.permission.BLUETOOTH_SCAN"
-        android:minSdkVersion="31"
         android:usesPermissionFlags="neverForLocation" />
 
-    <!-- Nearby Wi-Fi permission for Android 13 and newer -->
+    <!-- Nearby Wi-Fi -->
     <uses-permission
         android:name="android.permission.NEARBY_WIFI_DEVICES"
-        android:minSdkVersion="33"
         android:usesPermissionFlags="neverForLocation" />
 
-    <!-- Media access for Android 12 and older -->
+    <!-- Media permissions -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
 
-    <!-- Media access for Android 13 and newer -->
-    <uses-permission
-        android:name="android.permission.READ_MEDIA_IMAGES"
-        android:minSdkVersion="33" />
-    <uses-permission
-        android:name="android.permission.READ_MEDIA_VIDEO"
-        android:minSdkVersion="33" />
-    <uses-permission
-        android:name="android.permission.READ_MEDIA_AUDIO"
-        android:minSdkVersion="33" />
-
-    <!-- Selected photos and videos access on Android 14 and newer -->
-    <uses-permission
-        android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
-        android:minSdkVersion="34" />
-
-    <!-- Make launchable installed apps discoverable -->
+    <!-- Discover launchable installed applications -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -94,3 +75,4 @@
     </application>
 
 </manifest>
+
