@@ -3,6 +3,7 @@ package com.lumoralabs.share
 
 import android.os.Bundle
 import android.net.Uri
+import com.lumoralabs.share.ui.screens.DeviceFileBrowser
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -408,7 +409,10 @@ private fun SendScreen(
     files: List<Uri>,
     onSelectFiles: () -> Unit
 ) {
-
+    DeviceFileBrowser(
+        onSelectFiles = onSelectFiles
+    )
+}
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
