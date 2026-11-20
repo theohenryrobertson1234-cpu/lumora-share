@@ -28,14 +28,15 @@ import androidx.compose.ui.unit.sp
 import com.lumoralabs.share.data.DeviceFileRepository
 import com.lumoralabs.share.model.FileCategory
 import com.lumoralabs.share.model.ShareItem
+import com.lumoralabs.share.ui.theme.LumoraPalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val BrowserBackground = Color(0xFF090814)
-private val BrowserCard = Color(0xFF171428)
-private val BrowserPurple = Color(0xFF8B5CF6)
-private val BrowserLightPurple = Color(0xFFC4B5FD)
-private val BrowserMuted = Color(0xFFAAA4C0)
+private val BrowserBackground = LumoraPalette.Obsidian
+private val BrowserCard = LumoraPalette.Surface
+private val BrowserPurple = LumoraPalette.Blue
+private val BrowserLightPurple = LumoraPalette.Pink
+private val BrowserMuted = LumoraPalette.Silver
 
 @Composable
 fun DeviceFileBrowser(
@@ -345,7 +346,7 @@ private fun AppGridItem(
 ) {
     Surface(
         color = if (selected) {
-            Color(0xFF30234F)
+            Color(0xFF1D2B43)
         } else {
             BrowserCard
         },
