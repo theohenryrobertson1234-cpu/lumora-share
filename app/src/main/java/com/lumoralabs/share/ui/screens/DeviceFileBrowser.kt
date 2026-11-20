@@ -187,7 +187,7 @@ fun DeviceFileBrowser(
     }
 
     val selectedIds = selectedItems.map { it.id }.toSet()
-    val categories = FileCategory.values()
+    val categories = FileCategory.values().toList()
 
     Column(
         modifier = Modifier
