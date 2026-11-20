@@ -1,11 +1,8 @@
 package com.lumoralabs.share
 
-import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,6 +61,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumoralabs.share.ui.screens.DeviceFileBrowser
+import com.lumoralabs.share.ui.screens.TransferQueueScreen
+import com.lumoralabs.share.model.ShareItem
 import com.lumoralabs.share.ui.theme.LumoraGradientButton
 import com.lumoralabs.share.ui.theme.LumoraGradientPanel
 import com.lumoralabs.share.ui.theme.LumoraPalette
@@ -87,14 +86,10 @@ class MainActivity : ComponentActivity() {
 fun LumoraShareApp() {
     var selectedTab by remember { mutableStateOf(MainTab.TRANSFER) }
     var showBrowser by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
     var showReceiver by remember { mutableStateOf(false) }
-    var selectedFiles by remember { mutableStateOf<List<Uri>>(emptyList()) }
-
-    val filePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        selectedFiles = (selectedFiles + uris).distinctBy { it.toString() }
-    }
+    var showConnect by remember { mutableStateOf(false) }
+    var selectedItems by remember { mutableStateOf<List<ShareItem>>(emptyList()) }
 
     LumoraTheme {
         Scaffold(
@@ -116,7 +111,9 @@ fun LumoraShareApp() {
                             onClick = {
                                 selectedTab = tab
                                 showBrowser = false
+                                showQueue = false
                                 showReceiver = false
+                                showConnect = false
                             },
                             icon = {
                                 Icon(icon, contentDescription = tab.label)
@@ -152,16 +149,35 @@ fun LumoraShareApp() {
                                     onBack = { showBrowser = false }
                                 )
                                 DeviceFileBrowser(
-                                    onSelectFiles = {
-                                        filePicker.launch(arrayOf("*/*"))
+                                    selectedItems = selectedItems,
+                                    onSelectionChanged = { selectedItems = it },
+                                    onReviewQueue = {
+                                        showBrowser = false
+                                        showQueue = true
                                     }
                                 )
-                                if (selectedFiles.isNotEmpty()) {
-                                    SelectedFilesFooter(
-                                        count = selectedFiles.size,
-                                        onClear = { selectedFiles = emptyList() }
-                                    )
-                                }
+                            }
+                            showQueue -> {
+                                RouteHeader(
+                                    title = "Review batch",
+                                    onBack = { showQueue = false; showBrowser = true }
+                                )
+                                TransferQueueScreen(
+                                    items = selectedItems,
+                                    onItemsChanged = { selectedItems = it },
+                                    onBack = { showQueue = false; showBrowser = true },
+                                    onContinue = {
+                                        showQueue = false
+                                        showConnect = true
+                                    }
+                                )
+                            }
+                            showConnect -> {
+                                RouteHeader(
+                                    title = "Connect a device",
+                                    onBack = { showConnect = false; showQueue = true }
+                                )
+                                ConnectScreen()
                             }
                             showReceiver -> {
                                 RouteHeader(
@@ -806,6 +822,59 @@ private fun SelectedFilesFooter(count: Int, onClear: () -> Unit) {
             TextButton(onClick = onClear) {
                 Text("Clear", color = LumoraPalette.Pink, fontSize = 11.sp)
             }
+        }
+    }
+}
+
+
+@Composable
+private fun ConnectScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp)
+            .padding(top = 38.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(112.dp)
+                .clip(CircleShape)
+                .background(LumoraPalette.DeepBlue),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Wifi,
+                contentDescription = null,
+                tint = LumoraPalette.Pink,
+                modifier = Modifier.size(48.dp)
+            )
+        }
+        Spacer(Modifier.height(22.dp))
+        Text(
+            "Your queue is ready.",
+            color = LumoraPalette.Platinum,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(9.dp))
+        Text(
+            "The next production milestone connects this reviewed batch to nearby-device discovery, pairing and the sequential transfer engine.",
+            color = LumoraPalette.Silver,
+            fontSize = 13.sp,
+            lineHeight = 20.sp
+        )
+        Spacer(Modifier.height(18.dp))
+        Surface(
+            color = LumoraPalette.Surface,
+            shape = RoundedCornerShape(15.dp)
+        ) {
+            Text(
+                "No files have been sent yet.",
+                color = LumoraPalette.Warning,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp)
+            )
         }
     }
 }
