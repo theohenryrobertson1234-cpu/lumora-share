@@ -1,163 +1,200 @@
-
 package com.lumoralabs.share
 
 import android.os.Bundle
-import android.net.Uri
-import com.lumoralabs.share.ui.screens.DeviceFileBrowser
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.lumoralabs.share.ui.screens.DeviceFileBrowser
+import com.lumoralabs.share.ui.screens.TransferQueueScreen
+import com.lumoralabs.share.model.ShareItem
+import com.lumoralabs.share.ui.theme.LumoraGradientButton
+import com.lumoralabs.share.ui.theme.LumoraGradientPanel
+import com.lumoralabs.share.ui.theme.LumoraPalette
+import com.lumoralabs.share.ui.theme.LumoraTheme
 
-private val Background = Color(0xFF090814)
-private val CardColor = Color(0xFF171428)
-private val Purple = Color(0xFF8B5CF6)
-private val LightPurple = Color(0xFFC4B5FD)
-private val Muted = Color(0xFFAAA4C0)
-
-private enum class ShareTab(
-    val label: String
-) {
-    HOME("Home"),
-    SEND("Send"),
-    RECEIVE("Receive"),
+private enum class MainTab(val label: String) {
+    TRANSFER("Transfer"),
     HISTORY("History"),
+    STORAGE("Storage"),
     SETTINGS("Settings")
 }
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        setContent {
-            LumoraShareApp()
-        }
+        setContent { LumoraShareApp() }
     }
 }
 
 @Composable
 fun LumoraShareApp() {
+    var selectedTab by remember { mutableStateOf(MainTab.TRANSFER) }
+    var showBrowser by remember { mutableStateOf(false) }
+    var showQueue by remember { mutableStateOf(false) }
+    var showReceiver by remember { mutableStateOf(false) }
+    var showConnect by remember { mutableStateOf(false) }
+    var selectedItems by remember { mutableStateOf<List<ShareItem>>(emptyList()) }
 
-    var selectedTab by remember {
-        mutableStateOf(ShareTab.HOME)
-    }
-
-    var selectedFiles by remember {
-        mutableStateOf<List<Uri>>(emptyList())
-    }
-
-    val filePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris ->
-        selectedFiles = uris
-    }
-
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Purple,
-            secondary = LightPurple,
-            background = Background,
-            surface = CardColor
-        )
-    ) {
-
+    LumoraTheme {
         Scaffold(
-            containerColor = Background,
+            containerColor = LumoraPalette.Obsidian,
             bottomBar = {
                 NavigationBar(
-                    containerColor = CardColor
+                    containerColor = LumoraPalette.Midnight,
+                    contentColor = LumoraPalette.Platinum
                 ) {
-
-                    ShareTab.entries.forEach { tab ->
-
+                    MainTab.values().forEach { tab ->
                         val icon = when (tab) {
-                            ShareTab.HOME -> Icons.Default.Home
-                            ShareTab.SEND -> Icons.Default.Send
-                            ShareTab.RECEIVE -> Icons.Default.Download
-                            ShareTab.HISTORY -> Icons.Default.History
-                            ShareTab.SETTINGS -> Icons.Default.Settings
+                            MainTab.TRANSFER -> Icons.Default.Share
+                            MainTab.HISTORY -> Icons.Default.History
+                            MainTab.STORAGE -> Icons.Default.Storage
+                            MainTab.SETTINGS -> Icons.Default.Settings
                         }
-
                         NavigationBarItem(
                             selected = selectedTab == tab,
                             onClick = {
                                 selectedTab = tab
+                                showBrowser = false
+                                showQueue = false
+                                showReceiver = false
+                                showConnect = false
                             },
                             icon = {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = tab.label
-                                )
+                                Icon(icon, contentDescription = tab.label)
                             },
                             label = {
-                                Text(
-                                    tab.label,
-                                    fontSize = 10.sp
-                                )
+                                Text(tab.label, fontSize = 10.sp)
                             },
                             colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = LightPurple,
-                                selectedTextColor = LightPurple,
-                                indicatorColor = Purple.copy(alpha = 0.2f),
-                                unselectedIconColor = Muted,
-                                unselectedTextColor = Muted
+                                selectedIconColor = Color.White,
+                                selectedTextColor = LumoraPalette.Platinum,
+                                indicatorColor = LumoraPalette.Blue.copy(alpha = 0.22f),
+                                unselectedIconColor = LumoraPalette.Silver,
+                                unselectedTextColor = LumoraPalette.Silver
                             )
                         )
                     }
                 }
             }
         ) { padding ->
-
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Background)
+                    .background(LumoraPalette.Obsidian)
                     .padding(padding)
-                    .padding(horizontal = 20.dp)
             ) {
-
-                Header()
-
+                AppHeader()
                 when (selectedTab) {
-
-                    ShareTab.HOME -> HomeScreen(
-                        onSend = {
-                            selectedTab = ShareTab.SEND
-                        },
-                        onReceive = {
-                            selectedTab = ShareTab.RECEIVE
+                    MainTab.TRANSFER -> {
+                        when {
+                            showBrowser -> {
+                                RouteHeader(
+                                    title = "Choose files",
+                                    onBack = { showBrowser = false }
+                                )
+                                DeviceFileBrowser(
+                                    selectedItems = selectedItems,
+                                    onSelectionChanged = { selectedItems = it },
+                                    onReviewQueue = {
+                                        showBrowser = false
+                                        showQueue = true
+                                    }
+                                )
+                            }
+                            showQueue -> {
+                                RouteHeader(
+                                    title = "Review batch",
+                                    onBack = { showQueue = false; showBrowser = true }
+                                )
+                                TransferQueueScreen(
+                                    items = selectedItems,
+                                    onItemsChanged = { selectedItems = it },
+                                    onBack = { showQueue = false; showBrowser = true },
+                                    onContinue = {
+                                        showQueue = false
+                                        showConnect = true
+                                    }
+                                )
+                            }
+                            showConnect -> {
+                                RouteHeader(
+                                    title = "Connect a device",
+                                    onBack = { showConnect = false; showQueue = true }
+                                )
+                                ConnectScreen()
+                            }
+                            showReceiver -> {
+                                RouteHeader(
+                                    title = "Receive files",
+                                    onBack = { showReceiver = false }
+                                )
+                                ReceiveScreen()
+                            }
+                            else -> TransferHome(
+                                onSend = { showBrowser = true },
+                                onReceive = { showReceiver = true }
+                            )
                         }
-                    )
-
-                    ShareTab.SEND -> SendScreen(
-                        files = selectedFiles,
-                        onSelectFiles = {
-                            filePicker.launch(arrayOf("*/*"))
-                        }
-                    )
-
-                    ShareTab.RECEIVE -> ReceiveScreen()
-
-                    ShareTab.HISTORY -> HistoryScreen()
-
-                    ShareTab.SETTINGS -> SettingsScreen()
+                    }
+                    MainTab.HISTORY -> HistoryScreen()
+                    MainTab.STORAGE -> StorageScreen()
+                    MainTab.SETTINGS -> SettingsScreen()
                 }
             }
         }
@@ -165,372 +202,551 @@ fun LumoraShareApp() {
 }
 
 @Composable
-private fun Header() {
-
+private fun AppHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 22.dp, bottom = 24.dp),
+            .padding(horizontal = 22.dp, vertical = 17.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .background(Purple, RoundedCornerShape(14.dp)),
+                .size(43.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(LumoraPalette.DeepBlue),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Default.Share,
-                contentDescription = null,
-                tint = Color.White
+                imageVector = Icons.Default.Share,
+                contentDescription = "Lumora Share",
+                tint = LumoraPalette.Platinum,
+                modifier = Modifier.size(22.dp)
             )
         }
-
         Spacer(Modifier.width(12.dp))
-
         Column {
             Text(
                 "LUMORA SHARE",
-                color = Color.White,
-                fontSize = 18.sp,
+                color = LumoraPalette.Platinum,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.ExtraBold,
-                letterSpacing = 1.sp
+                letterSpacing = 1.5.sp
             )
-
             Text(
-                "Share anything. Anywhere.",
-                color = Muted,
+                "Move without limits.",
+                color = LumoraPalette.Silver,
                 fontSize = 11.sp
             )
         }
-
         Spacer(Modifier.weight(1f))
+        Surface(
+            color = LumoraPalette.Surface,
+            shape = CircleShape
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(LumoraPalette.Success)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Offline",
+                    color = LumoraPalette.Silver,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
 
-        Icon(
-            Icons.Default.Wifi,
-            contentDescription = "Connection",
-            tint = Muted
+@Composable
+private fun RouteHeader(title: String, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 18.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TextButton(onClick = onBack) {
+            Icon(
+                Icons.Default.ArrowBack,
+                contentDescription = "Back",
+                tint = LumoraPalette.Platinum
+            )
+            Spacer(Modifier.width(5.dp))
+            Text("Back", color = LumoraPalette.Platinum)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            title,
+            color = LumoraPalette.Platinum,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 16.sp
         )
     }
 }
 
 @Composable
-private fun HomeScreen(
+private fun TransferHome(
     onSend: () -> Unit,
     onReceive: () -> Unit
 ) {
-
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 22.dp)
     ) {
-
+        Spacer(Modifier.height(8.dp))
         Text(
-            "Welcome to",
-            color = Muted,
-            fontSize = 15.sp
+            "YOUR FILES,",
+            color = LumoraPalette.Silver,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 2.sp
         )
-
         Text(
-            "Lumora Share.",
-            color = Color.White,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.Bold
+            "in motion.",
+            color = LumoraPalette.Platinum,
+            fontSize = 31.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = (-0.7).sp
         )
-
-        Spacer(Modifier.height(10.dp))
-
+        Spacer(Modifier.height(7.dp))
         Text(
-            "Move files between nearby devices simply and securely.",
-            color = Muted,
-            fontSize = 14.sp
+            "A more effortless way to move what matters.",
+            color = LumoraPalette.Silver,
+            fontSize = 13.sp
         )
+        Spacer(Modifier.height(22.dp))
 
-        Spacer(Modifier.height(28.dp))
-
-        Box(
+        LumoraGradientPanel(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(170.dp)
-                .background(
-                    Color(0xFF21183E),
-                    RoundedCornerShape(24.dp)
-                ),
-            contentAlignment = Alignment.Center
+                .height(205.dp),
+            shape = RoundedCornerShape(28.dp)
         ) {
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(21.dp)
             ) {
-
+                Column(
+                    modifier = Modifier.align(Alignment.CenterStart)
+                ) {
+                    Surface(
+                        color = Color.White.copy(alpha = 0.16f),
+                        shape = RoundedCornerShape(50.dp)
+                    ) {
+                        Text(
+                            "LUMORA CONNECT",
+                            color = Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.4.sp,
+                            modifier = Modifier.padding(
+                                horizontal = 10.dp,
+                                vertical = 6.dp
+                            )
+                        )
+                    }
+                    Spacer(Modifier.height(13.dp))
+                    Text(
+                        "Your devices.\nOne seamless flow.",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        lineHeight = 27.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Send and receive with confidence.",
+                        color = Color.White.copy(alpha = 0.88f),
+                        fontSize = 11.sp
+                    )
+                }
                 Icon(
-                    Icons.Default.Devices,
+                    imageVector = Icons.Default.Wifi,
                     contentDescription = null,
-                    tint = LightPurple,
-                    modifier = Modifier.size(55.dp)
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    "Your devices. Connected.",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-
-                Text(
-                    "Fast, private, nearby sharing",
-                    color = LightPurple,
-                    fontSize = 12.sp
+                    tint = Color.White.copy(alpha = 0.20f),
+                    modifier = Modifier
+                        .size(92.dp)
+                        .align(Alignment.BottomEnd)
                 )
             }
         }
 
-        Spacer(Modifier.height(24.dp))
-
+        Spacer(Modifier.height(20.dp))
         Text(
-            "START SHARING",
-            color = Muted,
-            fontSize = 11.sp,
+            "GET STARTED",
+            color = LumoraPalette.Silver,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp
+            letterSpacing = 1.8.sp
         )
+        Spacer(Modifier.height(11.dp))
 
-        Spacer(Modifier.height(12.dp))
-
-        ActionCard(
-            title = "Send files",
-            description = "Choose files to send to another device",
-            icon = Icons.Default.Send,
-            onClick = onSend
+        LumoraGradientButton(
+            text = "  Select files to send",
+            onClick = onSend,
+            modifier = Modifier.height(54.dp)
         )
-
-        Spacer(Modifier.height(14.dp))
-
-        ActionCard(
+        Spacer(Modifier.height(11.dp))
+        SecondaryAction(
             title = "Receive files",
-            description = "Get files from a nearby device",
-            icon = Icons.Default.Download,
+            subtitle = "Prepare this device to receive a transfer",
+            icon = Icons.Default.Wifi,
             onClick = onReceive
         )
 
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(23.dp))
+        Text(
+            "BROWSE BY TYPE",
+            color = LumoraPalette.Silver,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.8.sp
+        )
+        Spacer(Modifier.height(11.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CategoryCard(
+                title = "Apps",
+                subtitle = "Installed apps",
+                icon = Icons.Default.Apps,
+                modifier = Modifier.weight(1f)
+            )
+            CategoryCard(
+                title = "Photos",
+                subtitle = "Your gallery",
+                icon = Icons.Default.Image,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CategoryCard(
+                title = "Videos",
+                subtitle = "Clips and movies",
+                icon = Icons.Default.VideoLibrary,
+                modifier = Modifier.weight(1f)
+            )
+            CategoryCard(
+                title = "Music",
+                subtitle = "Audio library",
+                icon = Icons.Default.MusicNote,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CategoryCard(
+                title = "Documents",
+                subtitle = "PDFs and more",
+                icon = Icons.Default.Description,
+                modifier = Modifier.weight(1f)
+            )
+            CategoryCard(
+                title = "Other files",
+                subtitle = "Browse folders",
+                icon = Icons.Default.Folder,
+                modifier = Modifier.weight(1f)
+            )
+        }
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Spacer(Modifier.height(23.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 Icons.Default.Shield,
                 contentDescription = null,
-                tint = LightPurple,
-                modifier = Modifier.size(18.dp)
+                tint = LumoraPalette.Success,
+                modifier = Modifier.size(17.dp)
             )
-
             Spacer(Modifier.width(8.dp))
-
             Text(
-                "Your transfers are designed to stay private.",
-                color = Muted,
-                fontSize = 11.sp
+                "Transfers are designed to happen directly between nearby devices.",
+                color = LumoraPalette.Silver,
+                fontSize = 10.sp
             )
         }
     }
 }
 
 @Composable
-private fun ActionCard(
+private fun SecondaryAction(
     title: String,
-    description: String,
+    subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
 ) {
-
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(19.dp),
         colors = CardDefaults.cardColors(
-            containerColor = CardColor
+            containerColor = LumoraPalette.Surface
         )
     ) {
-
         Row(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .background(
-                        Purple.copy(alpha = 0.18f),
-                        RoundedCornerShape(14.dp)
-                    ),
+                    .size(43.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(LumoraPalette.DeepBlue),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = LumoraPalette.Platinum)
+            }
+            Spacer(Modifier.width(13.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = LumoraPalette.Platinum,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    subtitle,
+                    color = LumoraPalette.Silver,
+                    fontSize = 10.sp
+                )
+            }
+            Icon(
+                Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = LumoraPalette.Pink
+            )
+        }
+    }
+}
+
+@Composable
+private fun CategoryCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = LumoraPalette.Surface
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(LumoraPalette.DeepBlue),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     icon,
                     contentDescription = null,
-                    tint = LightPurple
+                    tint = LumoraPalette.Pink,
+                    modifier = Modifier.size(19.dp)
                 )
             }
-
-            Spacer(Modifier.width(14.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    title,
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-
-                Text(
-                    description,
-                    color = Muted,
-                    fontSize = 11.sp
-                )
-            }
-
-            Icon(
-                Icons.Default.ArrowForward,
-                contentDescription = null,
-                tint = LightPurple
+            Spacer(Modifier.height(11.dp))
+            Text(
+                title,
+                color = LumoraPalette.Platinum,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp
+            )
+            Text(
+                subtitle,
+                color = LumoraPalette.Silver,
+                fontSize = 10.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
 
 @Composable
-private fun SendScreen(
-    files: List<Uri>,
-    onSelectFiles: () -> Unit
-) {
-    DeviceFileBrowser(
-        onSelectFiles = onSelectFiles
-    )
-}
-
-
-@Composable
 private fun ReceiveScreen() {
-
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 22.dp)
+            .padding(top = 22.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
+        Spacer(Modifier.height(35.dp))
+        Box(
+            modifier = Modifier
+                .size(112.dp)
+                .clip(CircleShape)
+                .background(LumoraPalette.DeepBlue),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Wifi,
+                contentDescription = null,
+                tint = LumoraPalette.Pink,
+                modifier = Modifier.size(48.dp)
+            )
+        }
+        Spacer(Modifier.height(22.dp))
         Text(
-            "Receive files",
-            color = Color.White,
-            fontSize = 27.sp,
+            "Ready when you are.",
+            color = LumoraPalette.Platinum,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Bold
         )
-
-        Spacer(Modifier.height(8.dp))
-
+        Spacer(Modifier.height(9.dp))
         Text(
-            "Get files from another nearby device.",
-            color = Muted,
-            fontSize = 14.sp
-        )
-
-        Spacer(Modifier.height(35.dp))
-
-        EmptyState(
-            icon = Icons.Default.Wifi,
-            title = "Ready to receive",
-            description = "Nearby device discovery will be activated in our next development stage."
+            "Nearby discovery and secure pairing are being built as part of the transfer engine milestone.",
+            color = LumoraPalette.Silver,
+            fontSize = 13.sp,
+            lineHeight = 20.sp
         )
     }
 }
 
 @Composable
 private fun HistoryScreen() {
-
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp)
+            .padding(top = 20.dp)
     ) {
-
-        Text(
-            "Transfer history",
-            color = Color.White,
-            fontSize = 27.sp,
-            fontWeight = FontWeight.Bold
-        )
-
+        ScreenHeading("Your activity", "Every transfer, kept in one place.")
         Spacer(Modifier.height(25.dp))
-
         EmptyState(
             icon = Icons.Default.History,
-            title = "Nothing here yet",
-            description = "Your completed and failed transfers will appear here."
+            title = "Your story starts here",
+            description = "Completed and interrupted transfers will appear here once the transfer engine is connected."
         )
+    }
+}
+
+@Composable
+private fun StorageScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp)
+            .padding(top = 20.dp)
+    ) {
+        ScreenHeading("Storage intelligence", "A clearer picture of the files on your device.")
+        Spacer(Modifier.height(22.dp))
+        Card(
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = LumoraPalette.Surface)
+        ) {
+            Column(Modifier.padding(18.dp)) {
+                Text(
+                    "STORAGE OVERVIEW",
+                    color = LumoraPalette.Silver,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Your storage insights are coming.",
+                    color = LumoraPalette.Platinum,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    "We'll add accurate storage usage, large-file discovery and duplicate review after the file-indexing foundation is ready.",
+                    color = LumoraPalette.Silver,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun SettingsScreen() {
-
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp)
+            .padding(top = 20.dp)
     ) {
-
-        Text(
-            "Settings",
-            color = Color.White,
-            fontSize = 27.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(Modifier.height(22.dp))
-
-        SettingRow("App name", "Lumora Share")
-
-        SettingRow("Developer", "Lumora Labs")
-
-        SettingRow("Version", "0.1.0")
-
-        SettingRow("Connection", "Offline-first")
-
-        SettingRow("Privacy", "Approval required for incoming transfers")
+        ScreenHeading("Make it yours", "The details behind your Lumora experience.")
+        Spacer(Modifier.height(20.dp))
+        SettingCard("Application", "Lumora Share", "Version 0.1.0")
+        SettingCard("Experience", "Sound, haptics and motion", "Personalisation controls will be added with the interaction system.")
+        SettingCard("Privacy", "Your files stay yours", "Incoming transfers will require your approval.")
+        SettingCard("About", "Built by Lumora Labs", "Move without limits.")
     }
 }
 
 @Composable
-private fun SettingRow(
-    title: String,
-    value: String
-) {
+private fun ScreenHeading(title: String, subtitle: String) {
+    Text(
+        title,
+        color = LumoraPalette.Platinum,
+        fontSize = 27.sp,
+        fontWeight = FontWeight.Bold
+    )
+    Spacer(Modifier.height(7.dp))
+    Text(
+        subtitle,
+        color = LumoraPalette.Silver,
+        fontSize = 13.sp
+    )
+}
 
+@Composable
+private fun SettingCard(title: String, value: String, description: String) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 10.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = CardColor
-        )
+            .padding(bottom = 11.dp),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = LumoraPalette.Surface)
     ) {
-
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-
+        Column(Modifier.padding(16.dp)) {
             Text(
-                title,
-                color = Muted,
-                fontSize = 11.sp
+                title.uppercase(),
+                color = LumoraPalette.Silver,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.4.sp
             )
-
-            Spacer(Modifier.height(4.dp))
-
+            Spacer(Modifier.height(7.dp))
             Text(
                 value,
-                color = Color.White,
+                color = LumoraPalette.Platinum,
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                description,
+                color = LumoraPalette.Silver,
+                fontSize = 11.sp,
+                lineHeight = 16.sp
             )
         }
     }
@@ -542,47 +758,123 @@ private fun EmptyState(
     title: String,
     description: String
 ) {
-
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 35.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-
         Box(
             modifier = Modifier
                 .size(82.dp)
-                .background(
-                    Purple.copy(alpha = 0.16f),
-                    CircleShape
-                ),
+                .clip(CircleShape)
+                .background(LumoraPalette.DeepBlue),
             contentAlignment = Alignment.Center
         ) {
-
             Icon(
                 icon,
                 contentDescription = null,
-                tint = LightPurple,
-                modifier = Modifier.size(38.dp)
+                tint = LumoraPalette.Pink,
+                modifier = Modifier.size(35.dp)
             )
         }
-
-        Spacer(Modifier.height(18.dp))
-
+        Spacer(Modifier.height(17.dp))
         Text(
             title,
-            color = Color.White,
-            fontSize = 18.sp,
+            color = LumoraPalette.Platinum,
+            fontSize = 17.sp,
             fontWeight = FontWeight.Bold
         )
-
-        Spacer(Modifier.height(8.dp))
-
+        Spacer(Modifier.height(7.dp))
         Text(
             description,
-            color = Muted,
-            fontSize = 12.sp
+            color = LumoraPalette.Silver,
+            fontSize = 12.sp,
+            lineHeight = 18.sp
         )
+    }
+}
+
+@Composable
+private fun SelectedFilesFooter(count: Int, onClear: () -> Unit) {
+    Surface(
+        color = LumoraPalette.SurfaceElevated,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = LumoraPalette.Success,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "$count document selection(s) added",
+                color = LumoraPalette.Platinum,
+                fontSize = 11.sp,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onClear) {
+                Text("Clear", color = LumoraPalette.Pink, fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun ConnectScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp)
+            .padding(top = 38.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(112.dp)
+                .clip(CircleShape)
+                .background(LumoraPalette.DeepBlue),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.Wifi,
+                contentDescription = null,
+                tint = LumoraPalette.Pink,
+                modifier = Modifier.size(48.dp)
+            )
+        }
+        Spacer(Modifier.height(22.dp))
+        Text(
+            "Your queue is ready.",
+            color = LumoraPalette.Platinum,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(9.dp))
+        Text(
+            "The next production milestone connects this reviewed batch to nearby-device discovery, pairing and the sequential transfer engine.",
+            color = LumoraPalette.Silver,
+            fontSize = 13.sp,
+            lineHeight = 20.sp
+        )
+        Spacer(Modifier.height(18.dp))
+        Surface(
+            color = LumoraPalette.Surface,
+            shape = RoundedCornerShape(15.dp)
+        ) {
+            Text(
+                "No files have been sent yet.",
+                color = LumoraPalette.Warning,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 15.dp, vertical = 11.dp)
+            )
+        }
     }
 }
