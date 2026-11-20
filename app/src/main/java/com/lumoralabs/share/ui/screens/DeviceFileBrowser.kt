@@ -1,21 +1,54 @@
-
 package com.lumoralabs.share.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.OpenableColumns
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,308 +62,302 @@ import com.lumoralabs.share.data.DeviceFileRepository
 import com.lumoralabs.share.model.FileCategory
 import com.lumoralabs.share.model.ShareItem
 import com.lumoralabs.share.ui.theme.LumoraPalette
+import com.lumoralabs.share.ui.theme.LumoraGradientButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val BrowserBackground = LumoraPalette.Obsidian
-private val BrowserCard = LumoraPalette.Surface
-private val BrowserPurple = LumoraPalette.Blue
-private val BrowserLightPurple = LumoraPalette.Pink
-private val BrowserMuted = LumoraPalette.Silver
-
 @Composable
 fun DeviceFileBrowser(
-    onSelectFiles: () -> Unit
+    selectedItems: List<ShareItem>,
+    onSelectionChanged: (List<ShareItem>) -> Unit,
+    onReviewQueue: () -> Unit
 ) {
     val context = LocalContext.current
+    val repository = remember(context) { DeviceFileRepository(context) }
+    var category by remember { mutableStateOf(FileCategory.APPS) }
+    var displayedItems by remember { mutableStateOf<List<ShareItem>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var hasAccess by remember { mutableStateOf(category == FileCategory.APPS) }
+    var accessRefresh by remember { mutableStateOf(0) }
 
-    var category by remember {
-        mutableStateOf(FileCategory.APPS)
-    }
-
-    var apps by remember {
-        mutableStateOf<List<ShareItem>>(emptyList())
-    }
-
-    var selectedIds by remember {
-        mutableStateOf(setOf<String>())
-    }
-
-    var loading by remember {
-        mutableStateOf(true)
-    }
-
-    LaunchedEffect(Unit) {
-        apps = withContext(Dispatchers.IO) {
-            DeviceFileRepository(context).getInstalledApps()
+    fun mediaPermissions(target: FileCategory): Array<String> {
+        if (Build.VERSION.SDK_INT >= 34) {
+            return when (target) {
+                FileCategory.PHOTOS -> arrayOf(
+                    Manifest.permission.READ_MEDIA_IMAGES,
+                    Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+                )
+                FileCategory.VIDEOS -> arrayOf(
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED
+                )
+                FileCategory.MUSIC -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
+                else -> emptyArray()
+            }
         }
-        loading = false
+        if (Build.VERSION.SDK_INT >= 33) {
+            return when (target) {
+                FileCategory.PHOTOS -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+                FileCategory.VIDEOS -> arrayOf(Manifest.permission.READ_MEDIA_VIDEO)
+                FileCategory.MUSIC -> arrayOf(Manifest.permission.READ_MEDIA_AUDIO)
+                else -> emptyArray()
+            }
+        }
+        return arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
     }
 
-    val categories = FileCategory.entries
+    fun accessGranted(target: FileCategory): Boolean {
+        if (target == FileCategory.APPS ||
+            target == FileCategory.DOCUMENTS ||
+            target == FileCategory.OTHER
+        ) return true
+        return mediaPermissions(target).any {
+            context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        hasAccess = accessGranted(category)
+        accessRefresh++
+    }
+
+    val documentPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val picked = uris.mapNotNull { uri ->
+                try {
+                    val cursor = context.contentResolver.query(
+                        uri,
+                        arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                        null,
+                        null,
+                        null
+                    )
+                    var name = uri.lastPathSegment ?: "Shared file"
+                    var size = 0L
+                    cursor?.use {
+                        if (it.moveToFirst()) {
+                            val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                            val sizeIndex = it.getColumnIndex(OpenableColumns.SIZE)
+                            if (nameIndex >= 0) name = it.getString(nameIndex) ?: name
+                            if (sizeIndex >= 0 && !it.isNull(sizeIndex)) size = it.getLong(sizeIndex)
+                        }
+                    }
+                    val mime = context.contentResolver.getType(uri)
+                    ShareItem(
+                        id = "PICKED:$uri",
+                        name = name,
+                        sizeBytes = size,
+                        category = category,
+                        uri = uri,
+                        mimeType = mime
+                    )
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            onSelectionChanged((selectedItems + picked).distinctBy { it.id })
+        }
+    }
+
+    LaunchedEffect(category, accessRefresh) {
+        hasAccess = accessGranted(category)
+        if (category == FileCategory.DOCUMENTS || category == FileCategory.OTHER) {
+            displayedItems = emptyList()
+            loading = false
+        } else if (!hasAccess) {
+            displayedItems = emptyList()
+            loading = false
+        } else {
+            loading = true
+            displayedItems = withContext(Dispatchers.IO) {
+                when (category) {
+                    FileCategory.APPS -> repository.getInstalledApps()
+                    FileCategory.PHOTOS -> repository.getPhotos()
+                    FileCategory.VIDEOS -> repository.getVideos()
+                    FileCategory.MUSIC -> repository.getMusic()
+                    else -> emptyList()
+                }
+            }
+            loading = false
+        }
+    }
+
+    val selectedIds = selectedItems.map { it.id }.toSet()
+    val categories = FileCategory.values()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BrowserBackground)
+            .background(LumoraPalette.Obsidian)
+            .padding(horizontal = 18.dp)
     ) {
-
         Text(
-            "Share files",
-            color = Color.White,
-            fontSize = 27.sp,
+            "Choose what moves with you.",
+            color = LumoraPalette.Platinum,
+            fontSize = 23.sp,
             fontWeight = FontWeight.Bold
         )
-
-        Spacer(Modifier.height(6.dp))
-
+        Spacer(Modifier.height(5.dp))
         Text(
-            "Choose what you want to share with another device.",
-            color = BrowserMuted,
-            fontSize = 13.sp
+            "Your selections stay with you as you browse other categories.",
+            color = LumoraPalette.Silver,
+            fontSize = 12.sp
         )
+        Spacer(Modifier.height(16.dp))
 
-        Spacer(Modifier.height(18.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        androidx.compose.foundation.lazy.LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 2.dp)
         ) {
-            categories.forEach { item ->
-
+            items(categories) { item ->
                 val active = category == item
-
                 Surface(
-                    color = if (active) {
-                        BrowserPurple
-                    } else {
-                        BrowserCard
-                    },
-                    shape = RoundedCornerShape(12.dp),
+                    color = if (active) LumoraPalette.Blue.copy(alpha = 0.22f)
+                    else LumoraPalette.Surface,
+                    shape = RoundedCornerShape(13.dp),
                     modifier = Modifier.clickable {
                         category = item
                     }
                 ) {
                     Text(
-                        text = item.title,
-                        color = if (active) {
-                            Color.White
-                        } else {
-                            BrowserMuted
-                        },
+                        item.title,
+                        color = if (active) LumoraPalette.Platinum else LumoraPalette.Silver,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(
-                            horizontal = 15.dp,
-                            vertical = 11.dp
-                        )
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                     )
                 }
             }
         }
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(14.dp))
 
-        if (category == FileCategory.APPS) {
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        "Installed applications",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp
-                    )
-
-                    Text(
-                        "${apps.size} applications found",
-                        color = BrowserMuted,
-                        fontSize = 11.sp
-                    )
-                }
-
-                TextButton(
-                    onClick = {
-                        selectedIds = if (
-                            selectedIds.size == apps.size
-                        ) {
-                            emptySet()
-                        } else {
-                            apps.map { it.id }.toSet()
-                        }
+        when {
+            category == FileCategory.DOCUMENTS || category == FileCategory.OTHER -> {
+                CategoryPickerPrompt(
+                    category = category,
+                    onBrowse = { documentPicker.launch(arrayOf("*/*")) }
+                )
+            }
+            !hasAccess -> {
+                CategoryPermissionPrompt(
+                    category = category,
+                    onGrant = {
+                        val permissions = mediaPermissions(category)
+                        if (permissions.isNotEmpty()) permissionLauncher.launch(permissions)
                     }
+                )
+            }
+            loading -> {
+                Box(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        if (
-                            apps.isNotEmpty() &&
-                            selectedIds.size == apps.size
-                        ) "Clear all" else "Select all",
-                        color = BrowserLightPurple
-                    )
+                    CircularProgressIndicator(color = LumoraPalette.Blue)
                 }
             }
-
-            Spacer(Modifier.height(12.dp))
-
-            when {
-                loading -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = BrowserPurple
+            displayedItems.isEmpty() -> {
+                EmptyCategory(category)
+            }
+            else -> {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            category.title,
+                            color = LumoraPalette.Platinum,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "${displayedItems.size} items found",
+                            color = LumoraPalette.Silver,
+                            fontSize = 11.sp
                         )
                     }
-                }
-
-                apps.isEmpty() -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
+                    TextButton(
+                        onClick = {
+                            val allSelected = displayedItems.all { it.id in selectedIds }
+                            val next = if (allSelected) {
+                                selectedItems.filterNot { old -> displayedItems.any { it.id == old.id } }
+                            } else {
+                                (selectedItems + displayedItems).distinctBy { it.id }
+                            }
+                            onSelectionChanged(next)
+                        }
                     ) {
                         Text(
-                            "No launchable applications found.",
-                            color = BrowserMuted
+                            if (displayedItems.all { it.id in selectedIds }) "Clear category"
+                            else "Select all",
+                            color = LumoraPalette.Pink
                         )
                     }
                 }
-
-                else -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(
-                            bottom = 12.dp
-                        ),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(
-                            items = apps,
-                            key = { it.id }
-                        ) { app ->
-
-                            val selected = app.id in selectedIds
-
-                            AppGridItem(
-                                app = app,
-                                selected = selected,
-                                onClick = {
-                                    selectedIds =
-                                        if (selected) {
-                                            selectedIds - app.id
-                                        } else {
-                                            selectedIds + app.id
-                                        }
-                                }
-                            )
-                        }
-                    }
-                }
-            }
-
-        } else {
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.FolderOpen,
-                    contentDescription = null,
-                    tint = BrowserLightPurple,
-                    modifier = Modifier.size(48.dp)
-                )
-
-                Spacer(Modifier.height(14.dp))
-
-                Text(
-                    category.title,
-                    color = Color.White,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(Modifier.height(7.dp))
-
-                Text(
-                    "This category will be connected to the device file browser in the next stage.",
-                    color = BrowserMuted,
-                    fontSize = 12.sp
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                Button(
-                    onClick = onSelectFiles,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = BrowserPurple
-                    )
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text("Browse device files")
+                    items(displayedItems, key = { it.id }) { item ->
+                        SelectableFileRow(
+                            item = item,
+                            selected = item.id in selectedIds,
+                            onClick = {
+                                val next = if (item.id in selectedIds) {
+                                    selectedItems.filterNot { it.id == item.id }
+                                } else {
+                                    selectedItems + item
+                                }
+                                onSelectionChanged(next)
+                            }
+                        )
+                    }
                 }
             }
         }
 
-        if (category == FileCategory.APPS) {
+        if (selectedItems.isNotEmpty()) {
             Surface(
-                color = BrowserCard,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
+                color = LumoraPalette.SurfaceElevated,
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(14.dp)
+                Row(
+                    modifier = Modifier.padding(start = 15.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "${selectedItems.size} selected",
+                            color = LumoraPalette.Platinum,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            "Combined selection across categories",
+                            color = LumoraPalette.Silver,
+                            fontSize = 10.sp
+                        )
+                    }
+                    TextButton(onClick = { onSelectionChanged(emptyList()) }) {
+                        Text("Clear", color = LumoraPalette.Pink)
+                    }
+                    Button(
+                        onClick = onReviewQueue,
+                        colors = ButtonDefaults.buttonColors(containerColor = LumoraPalette.Blue),
+                        shape = RoundedCornerShape(13.dp)
                     ) {
-                        Column {
-                            Text(
-                                "${selectedIds.size} selected",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
-                            )
-
-                            Text(
-                                "Applications ready for preparation",
-                                color = BrowserMuted,
-                                fontSize = 10.sp
-                            )
-                        }
-
-                        Button(
-                            enabled = selectedIds.isNotEmpty(),
-                            onClick = {
-                                Toast.makeText(
-                                    context,
-                                    "App package preparation is the next development stage.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = BrowserPurple,
-                                disabledContainerColor = Color(0xFF39334B)
-                            )
-                        ) {
-                            Text("Continue")
-                        }
+                        Text("Review")
                     }
                 }
             }
@@ -339,85 +366,168 @@ fun DeviceFileBrowser(
 }
 
 @Composable
-private fun AppGridItem(
-    app: ShareItem,
+private fun SelectableFileRow(
+    item: ShareItem,
     selected: Boolean,
     onClick: () -> Unit
 ) {
     Surface(
-        color = if (selected) {
-            Color(0xFF1D2B43)
-        } else {
-            BrowserCard
-        },
-        shape = RoundedCornerShape(15.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
+        color = if (selected) LumoraPalette.DeepBlue.copy(alpha = 0.72f)
+        else LumoraPalette.Surface,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
-        Column(
-            modifier = Modifier.padding(
-                horizontal = 6.dp,
-                vertical = 12.dp
-            ),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Row(
+            modifier = Modifier.padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-
             Box(
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier
+                    .size(43.dp)
+                    .background(LumoraPalette.DeepBlue, RoundedCornerShape(13.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                if (app.icon != null) {
+                if (item.icon != null) {
                     Image(
-                        bitmap = app.icon.asImageBitmap(),
-                        contentDescription = app.name,
-                        modifier = Modifier.size(42.dp)
+                        bitmap = item.icon.asImageBitmap(),
+                        contentDescription = item.name,
+                        modifier = Modifier.size(34.dp)
                     )
                 } else {
-                    Icon(
-                        Icons.Default.Android,
-                        contentDescription = null,
-                        tint = BrowserLightPurple,
-                        modifier = Modifier.size(38.dp)
-                    )
-                }
-
-                if (selected) {
-                    Surface(
-                        color = BrowserPurple,
-                        shape = RoundedCornerShape(50.dp),
-                        modifier = Modifier
-                            .size(19.dp)
-                            .align(Alignment.TopEnd)
-                    ) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = "Selected",
-                            tint = Color.White,
-                            modifier = Modifier.padding(3.dp)
-                        )
+                    val icon = when (item.category) {
+                        FileCategory.APPS -> Icons.Default.Android
+                        FileCategory.PHOTOS -> Icons.Default.Image
+                        FileCategory.VIDEOS -> Icons.Default.VideoLibrary
+                        FileCategory.MUSIC -> Icons.Default.MusicNote
+                        else -> Icons.Default.Description
                     }
+                    Icon(icon, contentDescription = null, tint = LumoraPalette.Pink)
                 }
             }
-
-            Spacer(Modifier.height(8.dp))
-
-            Text(
-                app.name,
-                color = Color.White,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(Modifier.height(4.dp))
-
-            Text(
-                app.sizeLabel,
-                color = BrowserMuted,
-                fontSize = 9.sp
-            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    item.name,
+                    color = LumoraPalette.Platinum,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    item.sizeLabel,
+                    color = LumoraPalette.Silver,
+                    fontSize = 10.sp
+                )
+            }
+            if (selected) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Selected",
+                    tint = LumoraPalette.Pink,
+                    modifier = Modifier.size(21.dp)
+                )
+            } else {
+                Box(
+                    Modifier
+                        .size(20.dp)
+                        .background(Color.Transparent, CircleShape)
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun CategoryPickerPrompt(
+    category: FileCategory,
+    onBrowse: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().weight(1f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Default.FolderOpen,
+            contentDescription = null,
+            tint = LumoraPalette.Pink,
+            modifier = Modifier.size(52.dp)
+        )
+        Spacer(Modifier.height(14.dp))
+        Text(category.title, color = LumoraPalette.Platinum, fontSize = 19.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Choose files using Android's secure file picker. Your choices will be added to the same transfer selection.",
+            color = LumoraPalette.Silver,
+            fontSize = 12.sp
+        )
+        Spacer(Modifier.height(18.dp))
+        LumoraGradientButton("Browse ${category.title.lowercase()}", onBrowse)
+    }
+}
+
+@Composable
+private fun CategoryPermissionPrompt(
+    category: FileCategory,
+    onGrant: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().weight(1f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            when (category) {
+                FileCategory.PHOTOS -> Icons.Default.Image
+                FileCategory.VIDEOS -> Icons.Default.VideoLibrary
+                else -> Icons.Default.MusicNote
+            },
+            contentDescription = null,
+            tint = LumoraPalette.Pink,
+            modifier = Modifier.size(48.dp)
+        )
+        Spacer(Modifier.height(14.dp))
+        Text(
+            "Allow access to ${category.title.lowercase()}",
+            color = LumoraPalette.Platinum,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(7.dp))
+        Text(
+            "Lumora Share needs permission to display the media you choose to send. You remain in control of what is selected.",
+            color = LumoraPalette.Silver,
+            fontSize = 12.sp
+        )
+        Spacer(Modifier.height(18.dp))
+        LumoraGradientButton("Grant access", onGrant)
+    }
+}
+
+@Composable
+private fun EmptyCategory(category: FileCategory) {
+    Column(
+        modifier = Modifier.fillMaxWidth().weight(1f),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            when (category) {
+                FileCategory.PHOTOS -> Icons.Default.Image
+                FileCategory.VIDEOS -> Icons.Default.VideoLibrary
+                else -> Icons.Default.MusicNote
+            },
+            contentDescription = null,
+            tint = LumoraPalette.Silver,
+            modifier = Modifier.size(45.dp)
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Nothing to show yet", color = LumoraPalette.Platinum, fontWeight = FontWeight.SemiBold)
+        Text(
+            "No accessible ${category.title.lowercase()} were found on this device.",
+            color = LumoraPalette.Silver,
+            fontSize = 11.sp
+        )
     }
 }
