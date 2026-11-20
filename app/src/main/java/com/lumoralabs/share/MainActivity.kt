@@ -64,7 +64,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.lumoralabs.share.ui.screens.DeviceFileBrowser
-import com.lumoralabs.share.ui.theme.LumoraColors
 import com.lumoralabs.share.ui.theme.LumoraGradientButton
 import com.lumoralabs.share.ui.theme.LumoraGradientPanel
 import com.lumoralabs.share.ui.theme.LumoraPalette
