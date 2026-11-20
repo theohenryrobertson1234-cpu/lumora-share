@@ -1,10 +1,12 @@
 package com.lumoralabs.share.ui.screens
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
+import android.widget.Toast
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -147,6 +149,34 @@ fun DeviceFileBrowser(
                         }
                     }
                     val mime = context.contentResolver.getType(uri)
+                    val extension = name.substringAfterLast(".", "").lowercase()
+                    val documentExtensions = setOf(
+                        "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+                        "txt", "rtf", "csv", "odt", "ods", "odp", "epub"
+                    )
+                    val isDocument = extension in documentExtensions ||
+                        mime == "application/pdf" ||
+                        mime?.startsWith("text/") == true ||
+                        mime?.contains("wordprocessingml") == true ||
+                        mime?.contains("spreadsheetml") == true ||
+                        mime?.contains("presentationml") == true
+                    val isMedia = mime?.startsWith("image/") == true ||
+                        mime?.startsWith("video/") == true ||
+                        mime?.startsWith("audio/") == true
+                    val matchesCategory = when (category) {
+                        FileCategory.DOCUMENTS -> isDocument
+                        FileCategory.OTHER -> !isDocument && !isMedia
+                        else -> false
+                    }
+                    if (!matchesCategory) return@mapNotNull null
+                    try {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (_: Exception) {
+                        // Some document providers grant only temporary access.
+                    }
                     ShareItem(
                         id = "PICKED:$uri",
                         name = name,
@@ -159,7 +189,15 @@ fun DeviceFileBrowser(
                     null
                 }
             }
-            onSelectionChanged((selectedItems + picked).distinctBy { it.id })
+            if (picked.isEmpty()) {
+                Toast.makeText(
+                    context,
+                    "No files matching this category were selected.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                onSelectionChanged((selectedItems + picked).distinctBy { it.id })
+            }
         }
     }
 
